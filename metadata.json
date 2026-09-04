@@ -1,0 +1,12 @@
+{
+  "name": "Remix far-m-ate web demo",
+  "description": "Imported from GitHub: guruvejayk/far-m-ate",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
