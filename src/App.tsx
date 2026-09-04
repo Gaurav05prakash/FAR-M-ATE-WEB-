@@ -80,7 +80,7 @@ function FarmateWorkspace({ user, onLogout }: { user: User; onLogout: () => void
     });
   };
 
-  // Keep FarmContext dynamically synced with real-time weather updates
+  // Keep FarmContext dynamically synced with real-time weather updates & GPS location
   useEffect(() => {
     if (weather) {
       setContext((prev) => {
@@ -97,8 +97,28 @@ function FarmateWorkspace({ user, onLogout }: { user: User; onLogout: () => void
         saveSharedFarmContext(next);
         return next;
       });
+
+      // Automatically sync user profile location when GPS detects a live location
+      if (weather.location && weather.location !== 'Local Farm Area') {
+        if (user.farmProfile?.location !== weather.location) {
+          handleUpdateUser({
+            ...user,
+            farmProfile: {
+              ...(user.farmProfile || {
+                farmName: `${user.name}'s Farm`,
+                farmSizeAcres: 3.5,
+                primaryCrops: ['Tomato'],
+                soilType: 'Red Loam',
+                stateOrRegion: 'Tamil Nadu',
+                irrigationType: 'Drip & Borewell',
+              }),
+              location: weather.location,
+            },
+          });
+        }
+      }
     }
-  }, [weather]);
+  }, [weather?.location, weather?.isLive, weather?.temperature, weather?.condition]);
 
   // Active diagnostic states
   const [activeDiagnosis, setActiveDiagnosis] = useState<PestDiagnosis | null>(null);
@@ -168,10 +188,11 @@ function FarmateWorkspace({ user, onLogout }: { user: User; onLogout: () => void
       location: updatedUser.farmProfile?.location || prev.location,
       soilType: updatedUser.farmProfile?.soilType || prev.soilType,
     }));
-    // Optionally persist to server profile endpoint
+    // Persist to server profile endpoint
     fetch('/api/user/profile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(updatedUser),
     }).catch((e) => console.warn('Profile sync error:', e));
   };
@@ -480,6 +501,7 @@ function FarmateWorkspace({ user, onLogout }: { user: User; onLogout: () => void
                 onNavigateToPest={() => setCurrentMode('pest')}
                 onNavigateToVerification={() => setCurrentMode('counterfeit')}
                 onNavigateToRecommendations={() => setCurrentMode('recommendation')}
+                currentLocation={weather?.location || user.farmProfile?.location}
               />
             )}
 
@@ -650,6 +672,8 @@ function FarmateWorkspace({ user, onLogout }: { user: User; onLogout: () => void
         onSelectLanguage={handleLanguageChange}
         onLogout={onLogout}
         onStartDemo={handleStartDemo}
+        currentLocation={weather?.location || user.farmProfile?.location}
+        onRefreshLocation={refreshLocation}
       />
 
       {/* Poison Information Emergency Modal */}

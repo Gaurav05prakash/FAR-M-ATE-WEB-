@@ -18,6 +18,8 @@ import {
   Layers,
   Volume2,
   VolumeX,
+  Navigation,
+  RefreshCw,
 } from 'lucide-react';
 import { speechTTS } from '../../lib/voice/speech';
 import { IsometricFieldView } from './IsometricFieldView';
@@ -185,8 +187,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Right Controls: Language Selector, Bell, Profile Badge */}
-        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+        {/* Right Controls: GPS Location Badge, Language Selector, Bell, Profile Badge */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* GPS Location Tab/Badge */}
+          <button
+            onClick={onRefreshLocation}
+            disabled={weatherLoading}
+            className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-2xs transition cursor-pointer disabled:opacity-50"
+            title="Current GPS location synced across app. Click to refresh."
+          >
+            {weatherLoading ? (
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin shrink-0" />
+            ) : (
+              <Navigation className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            )}
+            <span className="max-w-[110px] sm:max-w-[150px] truncate">
+              {weather?.location || user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'}
+            </span>
+            {weather?.isLive && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Live GPS Connected" />
+            )}
+          </button>
+
           {/* Language selector dropdown */}
           <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-full text-xs text-neutral-700 shadow-2xs">
             <Globe className="w-3.5 h-3.5 text-neutral-500" />
@@ -223,8 +245,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {user.name}
               </span>
               <span className="text-[10px] text-neutral-500 flex items-center gap-0.5 leading-tight">
-                <MapPin className="w-2.5 h-2.5 text-emerald-600" />
-                <span>{user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'}</span>
+                <MapPin className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                <span className="max-w-[140px] truncate">{weather?.location || user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'}</span>
               </span>
             </div>
           </div>
@@ -279,18 +301,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[#113a24] tracking-tight">
               {homeT.farmOverviewTitle}
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-600 mt-1 flex items-center gap-1.5 font-medium">
+            <p className="text-xs sm:text-sm text-neutral-600 mt-1 flex items-center gap-1.5 font-medium flex-wrap">
               <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>
-                {weather?.location || user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'}: {homeT.farmSubtitle}
+              <span className="font-bold text-neutral-800">
+                {weather?.location || user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'}
               </span>
+              <span className="text-neutral-500">• {homeT.farmSubtitle}</span>
               {onRefreshLocation && (
                 <button
                   onClick={onRefreshLocation}
-                  className="text-[11px] text-emerald-700 hover:text-emerald-800 underline font-semibold ml-1 cursor-pointer"
+                  disabled={weatherLoading}
+                  className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold px-2 py-0.5 rounded-full ml-1 cursor-pointer transition disabled:opacity-50"
                   title="Detect GPS coordinates and fetch live local weather"
                 >
-                  {weatherLoading ? 'Detecting...' : 'Detect GPS'}
+                  <MapPin className="w-3 h-3 text-emerald-600" />
+                  <span>{weatherLoading ? 'Detecting GPS...' : 'Detect GPS'}</span>
                 </button>
               )}
             </p>
@@ -303,6 +328,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Sun className="w-6 h-6" />
               </div>
               <div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-800 mb-0.5">
+                  <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span className="max-w-[160px] truncate">{weather?.location || user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'}</span>
+                </div>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl font-black text-neutral-900">
                     {weather ? `${weather.temperature}°C` : homeT.weatherTemp}

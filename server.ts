@@ -45,6 +45,127 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Location & Geocoding Endpoints
+app.get('/api/location/reverse', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat as string);
+    const lon = parseFloat(req.query.lon as string);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'Valid latitude and longitude required' });
+    }
+
+    // 1. Query OpenStreetMap Nominatim with required User-Agent header
+    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+    const response = await fetch(nominatimUrl, {
+      headers: {
+        'User-Agent': 'FAR-M-ATE-AI/2.1 (contact: agro@farmate.org)',
+        'Accept-Language': 'en',
+      },
+    });
+
+    if (response.ok) {
+      const geoData: any = await response.json();
+      const addr = geoData.address || {};
+      const city =
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.municipality ||
+        addr.suburb ||
+        addr.county ||
+        addr.district ||
+        addr.state_district;
+      const state = addr.state || addr.region || addr.province;
+      const country = addr.country || 'India';
+
+      let locationName = '';
+      if (city && state) {
+        locationName = `${city}, ${state}`;
+      } else if (city) {
+        locationName = `${city}, ${country}`;
+      } else if (state) {
+        locationName = `${state}, ${country}`;
+      } else if (geoData.name) {
+        locationName = `${geoData.name}, ${state || country}`;
+      } else if (geoData.display_name) {
+        const parts = geoData.display_name.split(',').map((s: string) => s.trim());
+        locationName = parts.slice(0, 2).join(', ');
+      }
+
+      if (locationName) {
+        return res.json({
+          success: true,
+          location: locationName,
+          city: city || '',
+          state: state || '',
+          country,
+          latitude: lat,
+          longitude: lon,
+        });
+      }
+    }
+
+    // Fallback: Open-Meteo or formatted coordinates
+    return res.json({
+      success: true,
+      location: `Field Area (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`,
+      latitude: lat,
+      longitude: lon,
+    });
+  } catch (err: any) {
+    console.error('Reverse geocode error:', err);
+    res.status(500).json({ error: 'Failed to reverse geocode coordinates' });
+  }
+});
+
+app.get('/api/location/ip', async (req, res) => {
+  try {
+    const clientIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket.remoteAddress ||
+      '';
+
+    const cleanIp = clientIp.replace(/^::ffff:/, '');
+    const isLocal = !cleanIp || cleanIp === '127.0.0.1' || cleanIp === '::1';
+
+    const ipQueryUrl = isLocal ? 'http://ip-api.com/json/' : `http://ip-api.com/json/${cleanIp}`;
+    const ipRes = await fetch(ipQueryUrl);
+    if (ipRes.ok) {
+      const data: any = await ipRes.json();
+      if (data.status === 'success' && data.lat && data.lon) {
+        const locationName =
+          data.city && data.regionName
+            ? `${data.city}, ${data.regionName}`
+            : data.city || data.regionName || data.country || 'Krishnagiri, Tamil Nadu';
+        return res.json({
+          success: true,
+          location: locationName,
+          latitude: data.lat,
+          longitude: data.lon,
+          city: data.city,
+          region: data.regionName,
+          country: data.country,
+        });
+      }
+    }
+
+    return res.json({
+      success: false,
+      location: 'Krishnagiri, Tamil Nadu',
+      latitude: 12.52,
+      longitude: 78.21,
+    });
+  } catch (err: any) {
+    res.json({
+      success: false,
+      location: 'Krishnagiri, Tamil Nadu',
+      latitude: 12.52,
+      longitude: 78.21,
+    });
+  }
+});
+
 // Authentication Endpoints
 
 // 1. Sign Up

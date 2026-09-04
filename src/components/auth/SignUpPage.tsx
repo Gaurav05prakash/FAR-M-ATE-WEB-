@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Eye,
@@ -13,9 +13,11 @@ import {
   ChevronUp,
   MapPin,
   Phone,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { LanguageCode } from '../../types';
+import { detectCurrentGPSLocation } from '../../lib/weather/weatherService';
 
 interface SignUpPageProps {
   onNavigateToLogin: () => void;
@@ -45,6 +47,28 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
   const [location, setLocation] = useState('Krishnagiri, Tamil Nadu');
   const [farmSize, setFarmSize] = useState('3.5');
   const [primaryCrop, setPrimaryCrop] = useState('');
+  const [isDetectingGPS, setIsDetectingGPS] = useState(false);
+
+  useEffect(() => {
+    // Attempt background GPS/IP detection on signup load
+    detectCurrentGPSLocation().then((res) => {
+      if (res?.location) {
+        setLocation(res.location);
+      }
+    });
+  }, []);
+
+  const handleAutoDetectGPS = async () => {
+    setIsDetectingGPS(true);
+    try {
+      const res = await detectCurrentGPSLocation();
+      if (res?.location) {
+        setLocation(res.location);
+      }
+    } finally {
+      setIsDetectingGPS(false);
+    }
+  };
 
   // Status & Feedback states
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
@@ -430,7 +454,25 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block font-semibold text-neutral-600 mb-1">Location / District</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-neutral-600 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Location / District</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleAutoDetectGPS}
+                          disabled={isDetectingGPS}
+                          className="text-[10px] font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+                        >
+                          {isDetectingGPS ? (
+                            <RefreshCw className="w-2.5 h-2.5 text-emerald-600 animate-spin" />
+                          ) : (
+                            <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                          )}
+                          <span>{isDetectingGPS ? 'Detecting...' : 'Auto-detect GPS'}</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
                         value={location}

@@ -21,6 +21,7 @@ interface MyFarmViewProps {
   onNavigateToPest: () => void;
   onNavigateToVerification: () => void;
   onNavigateToRecommendations: () => void;
+  currentLocation?: string;
 }
 
 export const MyFarmView: React.FC<MyFarmViewProps> = ({
@@ -28,6 +29,7 @@ export const MyFarmView: React.FC<MyFarmViewProps> = ({
   onNavigateToPest,
   onNavigateToVerification,
   onNavigateToRecommendations,
+  currentLocation,
 }) => {
   const [selectedCrop, setSelectedCrop] = useState('Tomato');
 
@@ -90,7 +92,7 @@ export const MyFarmView: React.FC<MyFarmViewProps> = ({
           </h1>
           <p className="text-xs sm:text-sm text-neutral-600 mt-1 flex items-center gap-1.5 font-medium">
             <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>{user.farmProfile?.location} • {user.farmProfile?.farmSizeAcres} Total Acres</span>
+            <span>{currentLocation || user.farmProfile?.location || 'Krishnagiri, Tamil Nadu'} • {user.farmProfile?.farmSizeAcres || 3.5} Total Acres</span>
           </p>
         </div>
 

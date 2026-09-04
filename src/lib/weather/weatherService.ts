@@ -95,6 +95,72 @@ const DEFAULT_WEATHER: LiveWeatherData = {
 
 const STORAGE_KEY = 'farmate_live_weather_cache_v2';
 
+export async function reverseGeocodeCoords(lat: number, lon: number): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/location/reverse?lat=${lat}&lon=${lon}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.location) return data.location;
+    }
+  } catch (err) {
+    console.warn('Server reverse geocoding error, trying fallback:', err);
+  }
+
+  // Fallback 1: Open-Meteo geocoding if possible or coordinate label
+  return null;
+}
+
+export async function detectIPLocation(): Promise<{ location: string; latitude: number; longitude: number } | null> {
+  try {
+    const res = await fetch('/api/location/ip');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.latitude && data.longitude) {
+        return {
+          location: data.location,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('IP location detection error:', err);
+  }
+  return null;
+}
+
+export async function detectCurrentGPSLocation(): Promise<{ location: string; latitude: number; longitude: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      detectIPLocation().then(resolve);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const locationName = await reverseGeocodeCoords(lat, lon);
+        resolve({
+          location: locationName || `Field Area (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`,
+          latitude: lat,
+          longitude: lon,
+        });
+      },
+      async (err) => {
+        console.warn('Direct GPS lookup fallback to IP:', err.message);
+        const ipLoc = await detectIPLocation();
+        resolve(ipLoc);
+      },
+      {
+        timeout: 8000,
+        maximumAge: 0,
+        enableHighAccuracy: true,
+      }
+    );
+  });
+}
+
 export async function fetchLiveWeatherByCoords(lat: number, lon: number, customLocationName?: string): Promise<LiveWeatherData> {
   try {
     // 1. Fetch current weather from Open-Meteo
@@ -114,30 +180,15 @@ export async function fetchLiveWeatherByCoords(lat: number, lon: number, customL
 
     // 2. Reverse geocode location name if not provided
     let locationName = customLocationName;
-    if (!locationName) {
-      try {
-        const geoRes = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-          { headers: { 'Accept-Language': 'en' } }
-        );
-        if (geoRes.ok) {
-          const geoData = await geoRes.json();
-          const addr = geoData.address;
-          const city = addr.city || addr.town || addr.district || addr.county || addr.state_district;
-          const state = addr.state;
-          if (city && state) {
-            locationName = `${city}, ${state}`;
-          } else if (geoData.name) {
-            locationName = geoData.name;
-          }
-        }
-      } catch (e) {
-        console.warn('Reverse geocoding notice:', e);
+    if (!locationName || locationName === 'Local Farm Area') {
+      const serverLocation = await reverseGeocodeCoords(lat, lon);
+      if (serverLocation) {
+        locationName = serverLocation;
       }
     }
 
     const weatherData: LiveWeatherData = {
-      location: locationName || 'Local Farm Area',
+      location: locationName || `Field Area (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`,
       temperature: temp,
       condition,
       humidity,
@@ -163,7 +214,10 @@ export async function fetchLiveWeatherByCoords(lat: number, lon: number, customL
   }
 }
 
-export function useLiveWeather(initialLocation?: string) {
+export function useLiveWeather(
+  initialLocation?: string,
+  onLocationChange?: (newLocation: string, weather: LiveWeatherData) => void
+) {
   const [weather, setWeather] = useState<LiveWeatherData>(() => {
     try {
       const cached = localStorage.getItem(STORAGE_KEY);
@@ -182,37 +236,52 @@ export function useLiveWeather(initialLocation?: string) {
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
 
   const detectLocationAndWeather = useCallback(async (promptUser: boolean = false) => {
+    setLoading(true);
+
+    const handleSuccess = async (lat: number, lon: number, customName?: string) => {
+      const data = await fetchLiveWeatherByCoords(lat, lon, customName);
+      setWeather(data);
+      setLoading(false);
+      if (onLocationChange && data.location) {
+        onLocationChange(data.location, data);
+      }
+    };
+
     if (!navigator.geolocation) {
-      console.warn('Geolocation not supported by this browser');
+      console.warn('Geolocation not supported by this browser, trying IP fallback');
+      const ipLoc = await detectIPLocation();
+      if (ipLoc) {
+        await handleSuccess(ipLoc.latitude, ipLoc.longitude, ipLoc.location);
+      } else {
+        await handleSuccess(12.52, 78.21, initialLocation || 'Krishnagiri, Tamil Nadu');
+      }
       return;
     }
-
-    setLoading(true);
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         setPermissionState('granted');
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        const data = await fetchLiveWeatherByCoords(lat, lon);
-        setWeather(data);
-        setLoading(false);
+        await handleSuccess(lat, lon);
       },
       async (err) => {
-        console.warn('Geolocation access denied or timed out:', err.message);
+        console.warn('Geolocation access denied or timed out, trying IP fallback:', err.message);
         setPermissionState('denied');
-        // Fallback: Use Krishnagiri, Tamil Nadu coordinates or previous cached
-        const data = await fetchLiveWeatherByCoords(12.52, 78.21, initialLocation || 'Krishnagiri, Tamil Nadu');
-        setWeather(data);
-        setLoading(false);
+        const ipLoc = await detectIPLocation();
+        if (ipLoc) {
+          await handleSuccess(ipLoc.latitude, ipLoc.longitude, ipLoc.location);
+        } else {
+          await handleSuccess(12.52, 78.21, initialLocation || 'Krishnagiri, Tamil Nadu');
+        }
       },
       {
-        timeout: 10000,
-        maximumAge: 300000, // 5 min cache
-        enableHighAccuracy: false,
+        timeout: promptUser ? 8000 : 5000,
+        maximumAge: promptUser ? 0 : 300000,
+        enableHighAccuracy: true,
       }
     );
-  }, [initialLocation]);
+  }, [initialLocation, onLocationChange]);
 
   useEffect(() => {
     // Auto-detect on mount

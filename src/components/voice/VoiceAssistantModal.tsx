@@ -18,6 +18,7 @@ import {
   Bot,
   Layers,
   ArrowRight,
+  MapPin,
 } from 'lucide-react';
 import { AIOrb3D } from '../3d/AIOrb3D';
 import { LanguageCode, VoiceState, FarmContext } from '../../types';
@@ -355,6 +356,12 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 </option>
               ))}
             </select>
+            {context?.location && (
+              <span className="flex items-center gap-1 text-[11px] bg-neutral-800 border border-neutral-700 text-emerald-400 px-2 py-1 rounded-lg">
+                <MapPin className="w-3 h-3 text-emerald-400" />
+                <span className="max-w-[120px] truncate">{context.location}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
